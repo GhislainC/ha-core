@@ -39,6 +39,7 @@ from homeassistant.helpers import (
     device_registry as dr,
     entity_registry as er,
     script,
+    service,
     template,
     trace,
 )
@@ -7534,3 +7535,89 @@ async def test_async_unload_blocks_new_runs_during_stop(
 
     assert not script_obj.is_running
     assert script_id not in hass.data[script.DATA_SCRIPTS]
+
+
+async def test_permission_check_script_level(
+    hass: HomeAssistant,
+    hass_read_only_user: Any,
+) -> None:
+    """Test permission_check: false at top-level script allows non-admin execution."""
+    calls = []
+
+    async def mock_service(call: ServiceCall) -> None:
+        calls.append(call)
+
+    service.async_register_admin_service(hass, "test", "admin_action", mock_service)
+
+    sequence = cv.SCRIPT_SCHEMA([{"action": "test.admin_action"}])
+    script_obj = script.Script(
+        hass, sequence, "Test Name", "test_domain", permission_check=False
+    )
+
+    user_context = Context(user_id=hass_read_only_user.id)
+    await script_obj.async_run(context=user_context)
+
+    assert len(calls) == 1
+    assert calls[0].context.user_id is None
+    assert calls[0].context.parent_id == user_context.id
+
+
+async def test_permission_check_action_level(
+    hass: HomeAssistant,
+    hass_read_only_user: Any,
+) -> None:
+    """Test permission_check: false on individual action step."""
+    calls = []
+
+    async def mock_service(call: ServiceCall) -> None:
+        calls.append(call)
+
+    service.async_register_admin_service(hass, "test", "admin_action", mock_service)
+
+    sequence = cv.SCRIPT_SCHEMA(
+        [
+            {
+                "action": "test.admin_action",
+                "permission_check": False,
+            }
+        ]
+    )
+    script_obj = script.Script(hass, sequence, "Test Name", "test_domain")
+
+    user_context = Context(user_id=hass_read_only_user.id)
+    await script_obj.async_run(context=user_context)
+
+    assert len(calls) == 1
+    assert calls[0].context.user_id is None
+    assert calls[0].context.parent_id == user_context.id
+
+
+async def test_permission_check_action_override(
+    hass: HomeAssistant,
+    hass_read_only_user: Any,
+) -> None:
+    """Test permission_check: true on action step within permission_check: false script."""
+    calls = []
+
+    async def mock_service(call: ServiceCall) -> None:
+        calls.append(call)
+
+    service.async_register_admin_service(hass, "test", "admin_action", mock_service)
+
+    sequence = cv.SCRIPT_SCHEMA(
+        [
+            {
+                "action": "test.admin_action",
+                "permission_check": True,
+            }
+        ]
+    )
+    script_obj = script.Script(
+        hass, sequence, "Test Name", "test_domain", permission_check=False
+    )
+
+    user_context = Context(user_id=hass_read_only_user.id)
+    with pytest.raises(exceptions.Unauthorized):
+        await script_obj.async_run(context=user_context)
+
+    assert len(calls) == 0

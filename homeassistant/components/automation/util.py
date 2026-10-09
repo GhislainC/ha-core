@@ -10,6 +10,7 @@ from homeassistant.const import (
     CONF_CONDITIONS,
     CONF_ID,
     CONF_MODE,
+    CONF_PERMISSION_CHECK,
     CONF_TRIGGERS,
     CONF_VARIABLES,
 )
@@ -126,6 +127,7 @@ async def _create_automation_entities(
             max_runs=config_block[CONF_MAX],
             max_exceeded=config_block[CONF_MAX_EXCEEDED],
             logger=LOGGER,
+            permission_check=config_block[CONF_PERMISSION_CHECK],
             # We don't pass variables here
             # Automation will already render them to use them in the condition
             # and so will pass them on to the script.
