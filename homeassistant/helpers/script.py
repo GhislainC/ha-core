@@ -454,6 +454,8 @@ class _ScriptRun:
     """Manage Script sequence run."""
 
     _action: dict[str, Any]
+    _context: Context | None
+    _orig_context: Context | None
 
     def __init__(
         self,
@@ -587,6 +589,7 @@ class _ScriptRun:
                         trace_set_result(enabled=False)
                         return
 
+                step_context: Context | None
                 action_permission_check = self._action.get(CONF_PERMISSION_CHECK)
                 if action_permission_check is False:
                     if self._context and self._context.user_id is not None:

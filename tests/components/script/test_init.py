@@ -2067,7 +2067,7 @@ async def test_remove_script_entity_unloads_script(hass: HomeAssistant) -> None:
 @pytest.mark.parametrize("ignore_translations_for_mock_domains", ["test"])
 async def test_permission_check_script_entity(
     hass: HomeAssistant,
-    hass_read_only_user: Any,
+    hass_read_only_user: MockUser,
 ) -> None:
     """Test script entity with permission_check: false."""
     calls = []

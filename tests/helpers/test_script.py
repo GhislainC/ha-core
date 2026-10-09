@@ -52,6 +52,7 @@ from homeassistant.util import dt as dt_util
 from tests.common import (
     MockConfigEntry,
     MockModule,
+    MockUser,
     async_capture_events,
     async_fire_time_changed,
     async_mock_service,
@@ -7539,7 +7540,7 @@ async def test_async_unload_blocks_new_runs_during_stop(
 
 async def test_permission_check_script_level(
     hass: HomeAssistant,
-    hass_read_only_user: Any,
+    hass_read_only_user: MockUser,
 ) -> None:
     """Test permission_check: false at top-level script allows non-admin execution."""
     calls = []
@@ -7564,7 +7565,7 @@ async def test_permission_check_script_level(
 
 async def test_permission_check_action_level(
     hass: HomeAssistant,
-    hass_read_only_user: Any,
+    hass_read_only_user: MockUser,
 ) -> None:
     """Test permission_check: false on individual action step."""
     calls = []
@@ -7594,7 +7595,7 @@ async def test_permission_check_action_level(
 
 async def test_permission_check_action_override(
     hass: HomeAssistant,
-    hass_read_only_user: Any,
+    hass_read_only_user: MockUser,
 ) -> None:
     """Test permission_check: true on action step within permission_check: false script."""
     calls = []
