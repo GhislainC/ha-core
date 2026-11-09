@@ -1,9 +1,12 @@
 """Entity functions for Home Assistant templates."""
 
-from typing import TYPE_CHECKING
+from collections.abc import Iterable, Mapping
+from typing import TYPE_CHECKING, Any
 
+from homeassistant.core import State
 from homeassistant.helpers import device_registry as dr, entity_registry as er
 from homeassistant.helpers.registry import NextNamePart
+from homeassistant.helpers.template.states import _collect_state, _get_state
 
 from .base import BaseTemplateExtension, TemplateFunction
 
@@ -35,8 +38,47 @@ class EntityExtension(BaseTemplateExtension):
                     requires_hass=True,
                     limited_ok=False,
                 ),
+                TemplateFunction(
+                    "expand_target",
+                    self.expand_target,
+                    as_global=True,
+                    as_filter=True,
+                    requires_hass=True,
+                    limited_ok=False,
+                ),
             ],
         )
+
+    def expand_target(
+        self,
+        target_dict: Any,
+        primary_entities_only: bool = True,
+    ) -> Iterable[State]:
+        """Expand a target mapping into entity states."""
+        if not isinstance(target_dict, Mapping):
+            return []
+
+        # circular import
+        from homeassistant.helpers import target  # noqa: PLC0415
+
+        target_selection = target.TargetSelection(target_dict)
+        if not target_selection.has_any_target:
+            return []
+
+        selected = target.async_extract_referenced_entity_ids(
+            self.hass,
+            target_selection,
+            expand_group=True,
+            primary_entities_only=primary_entities_only,
+        )
+
+        all_entity_ids = selected.referenced | selected.indirectly_referenced
+        states: list[State] = []
+        for entity_id in all_entity_ids:
+            if (state := _get_state(self.hass, entity_id)) is not None:
+                _collect_state(self.hass, entity_id)
+                states.append(state)
+        return states
 
     def entity_name(self, entity_id: str, *, fallback: bool = False) -> str | None:
         """Get the name of an entity from its entity ID.
