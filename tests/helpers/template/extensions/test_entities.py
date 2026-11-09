@@ -128,7 +128,7 @@ def test_is_hidden_entity(
     )
 
 
-async def test_expand_target(
+async def test_resolve_target(
     hass: HomeAssistant,
     area_registry: ar.AreaRegistry,
     device_registry: dr.DeviceRegistry,
@@ -136,13 +136,13 @@ async def test_expand_target(
     floor_registry: fr.FloorRegistry,
     label_registry: lr.LabelRegistry,
 ) -> None:
-    """Test expand_target function and filter."""
+    """Test resolve_target function and filter."""
     # Test invalid / empty target
-    assert render(hass, "{{ expand_target(none) }}") == []
-    assert render(hass, "{{ expand_target(56) }}") == []
-    assert render(hass, "{{ expand_target('light.test') }}") == []
-    assert render(hass, "{{ expand_target({}) }}") == []
-    assert render(hass, "{{ {} | expand_target }}") == []
+    assert render(hass, "{{ resolve_target(none) }}") == []
+    assert render(hass, "{{ resolve_target(56) }}") == []
+    assert render(hass, "{{ resolve_target('light.test') }}") == []
+    assert render(hass, "{{ resolve_target({}) }}") == []
+    assert render(hass, "{{ {} | resolve_target }}") == []
 
     # Setup floor, area, label, config entry, device, entities
     floor = floor_registry.async_create("Ground Floor")
@@ -206,92 +206,84 @@ async def test_expand_target(
         "standalone_light",
     )
 
-    # Set states in state machine
-    hass.states.async_set(e1.entity_id, "on")
-    hass.states.async_set(e2.entity_id, "off")
-    hass.states.async_set(e3.entity_id, "on")
-    hass.states.async_set(e4.entity_id, "off")
-
+    # Direct entity_id targeting (returns list of entity IDs)
     target_e1 = {"entity_id": e1.entity_id}
     info = render_to_info(
         hass,
-        "{{ expand_target(target) | map(attribute='entity_id') | list }}",
+        "{{ resolve_target(target) }}",
         variables={"target": target_e1},
     )
-    assert_result_info(info, [e1.entity_id], [e1.entity_id])
+    assert_result_info(info, [e1.entity_id])
 
     # Filter syntax
     target_e1_e4 = {"entity_id": [e1.entity_id, e4.entity_id]}
     info = render_to_info(
         hass,
-        "{{ target | expand_target | map(attribute='entity_id') | sort | list }}",
+        "{{ target | resolve_target | sort }}",
         variables={"target": target_e1_e4},
     )
     assert_result_info(
         info,
         sorted([e1.entity_id, e4.entity_id]),
-        {e1.entity_id, e4.entity_id},
     )
 
     # Area targeting with primary_entities_only default (True) -> excludes e2 (config category)
     target_kitchen = {"area_id": area_kitchen.id}
     info = render_to_info(
         hass,
-        "{{ expand_target(target) | map(attribute='entity_id') | list }}",
+        "{{ resolve_target(target) }}",
         variables={"target": target_kitchen},
     )
-    assert_result_info(info, [e1.entity_id], [e1.entity_id])
+    assert_result_info(info, [e1.entity_id])
 
     # Area targeting with primary_entities_only=False -> includes e2
     info = render_to_info(
         hass,
-        "{{ expand_target(target, primary_entities_only=false) | map(attribute='entity_id') | sort | list }}",
+        "{{ resolve_target(target, primary_entities_only=false) | sort }}",
         variables={"target": target_kitchen},
     )
     assert_result_info(
         info,
         sorted([e1.entity_id, e2.entity_id]),
-        {e1.entity_id, e2.entity_id},
     )
 
     # Filter with primary_entities_only argument
     info = render_to_info(
         hass,
-        "{{ target | expand_target(primary_entities_only=false) | map(attribute='entity_id') | sort | list }}",
+        "{{ target | resolve_target(primary_entities_only=false) | sort }}",
         variables={"target": target_kitchen},
     )
     assert_result_info(
         info,
         sorted([e1.entity_id, e2.entity_id]),
-        {e1.entity_id, e2.entity_id},
     )
 
     # Floor targeting (resolves kitchen area)
     target_floor = {"floor_id": floor.floor_id}
     info = render_to_info(
         hass,
-        "{{ expand_target(target) | map(attribute='entity_id') | list }}",
+        "{{ resolve_target(target) }}",
         variables={"target": target_floor},
     )
-    assert_result_info(info, [e1.entity_id], [e1.entity_id])
+    assert_result_info(info, [e1.entity_id])
 
     # Device targeting
     target_device = {"device_id": device_living.id}
     info = render_to_info(
         hass,
-        "{{ expand_target(target) | map(attribute='entity_id') | list }}",
+        "{{ resolve_target(target) }}",
         variables={"target": target_device},
     )
-    assert_result_info(info, [e3.entity_id], [e3.entity_id])
+    assert_result_info(info, [e3.entity_id])
 
     # Label targeting
     target_label = {"label_id": label.label_id}
     info = render_to_info(
         hass,
-        "{{ expand_target(target) | map(attribute='entity_id') | list }}",
+        "{{ resolve_target(target) }}",
         variables={"target": target_label},
     )
-    assert_result_info(info, [e3.entity_id], [e3.entity_id])
+    assert_result_info(info, [e3.entity_id])
 
     # Exclude block targeting
     target_with_exclude = {
@@ -300,7 +292,16 @@ async def test_expand_target(
     }
     info = render_to_info(
         hass,
-        "{{ expand_target(target) | map(attribute='entity_id') | list }}",
+        "{{ resolve_target(target) }}",
         variables={"target": target_with_exclude},
     )
-    assert_result_info(info, [e3.entity_id], [e3.entity_id])
+    assert_result_info(info, [e3.entity_id])
+
+    # Can be chained with | expand to get State objects
+    hass.states.async_set(e1.entity_id, "on")
+    info = render_to_info(
+        hass,
+        "{{ target | resolve_target | expand | map(attribute='state') | list }}",
+        variables={"target": target_e1},
+    )
+    assert_result_info(info, ["on"], [e1.entity_id])

@@ -3,10 +3,8 @@
 from collections.abc import Iterable, Mapping
 from typing import TYPE_CHECKING, Any
 
-from homeassistant.core import State
 from homeassistant.helpers import device_registry as dr, entity_registry as er
 from homeassistant.helpers.registry import NextNamePart
-from homeassistant.helpers.template.states import _collect_state, _get_state
 
 from .base import BaseTemplateExtension, TemplateFunction
 
@@ -39,8 +37,8 @@ class EntityExtension(BaseTemplateExtension):
                     limited_ok=False,
                 ),
                 TemplateFunction(
-                    "expand_target",
-                    self.expand_target,
+                    "resolve_target",
+                    self.resolve_target,
                     as_global=True,
                     as_filter=True,
                     requires_hass=True,
@@ -49,12 +47,12 @@ class EntityExtension(BaseTemplateExtension):
             ],
         )
 
-    def expand_target(
+    def resolve_target(
         self,
         target_dict: Any,
         primary_entities_only: bool = True,
-    ) -> Iterable[State]:
-        """Expand a target mapping into entity states."""
+    ) -> Iterable[str]:
+        """Resolve a target mapping into entity IDs."""
         if not isinstance(target_dict, Mapping):
             return []
 
@@ -72,13 +70,7 @@ class EntityExtension(BaseTemplateExtension):
             primary_entities_only=primary_entities_only,
         )
 
-        all_entity_ids = selected.referenced | selected.indirectly_referenced
-        states: list[State] = []
-        for entity_id in all_entity_ids:
-            if (state := _get_state(self.hass, entity_id)) is not None:
-                _collect_state(self.hass, entity_id)
-                states.append(state)
-        return states
+        return list(selected.referenced | selected.indirectly_referenced)
 
     def entity_name(self, entity_id: str, *, fallback: bool = False) -> str | None:
         """Get the name of an entity from its entity ID.
